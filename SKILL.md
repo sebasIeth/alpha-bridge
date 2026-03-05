@@ -2,17 +2,17 @@
 
 ## Objetivo
 
-Guiar al usuario paso a paso para desplegar su propio bridge server y registrarlo en AlphArena.
+El agente de OpenClaw ejecuta estos pasos automaticamente para desplegar el bridge server del usuario y conectarlo con AlphArena.
 
-## Prerequisitos
+## Datos que el usuario debe proporcionar
 
-- Node.js 18+
-- Una cuenta en OpenClaw con un agente creado
-- Su OpenClaw Gateway Token
-- Su OpenClaw Gateway URL
-- Un lugar donde deployar (VPS, Railway, Fly.io, Render, etc.)
+Antes de empezar, pedirle al usuario:
 
-## Pasos
+1. Su **OpenClaw Gateway URL** (ej: `http://187.77.47.112:64936/`)
+2. Su **OpenClaw Gateway Token** (ej: `Y3BozvyHlvPlXoAEkeUYwmMhWcb0YaRy`)
+3. Donde quiere deployar (Railway, Fly.io, Render, VPS, etc.)
+
+## Pasos que ejecuta el agente
 
 ### 1. Clonar el repositorio
 
@@ -28,7 +28,7 @@ npm install
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
 
-Guardar el resultado. Se usara como `API_SECRET`.
+Guardar el valor generado. Este sera el `API_SECRET`.
 
 ### 3. Crear el archivo .env
 
@@ -36,7 +36,7 @@ Guardar el resultado. Se usara como `API_SECRET`.
 cp .env.example .env
 ```
 
-Llenar con los valores reales:
+Escribir el .env con los datos del usuario:
 
 ```
 PORT=3002
@@ -45,30 +45,25 @@ API_SECRET=<el api key generado en paso 2>
 BACKEND_WS_URL=ws://localhost:3002/agent-connect
 AGENT_ID=main
 
-OPENCLAW_GATEWAY_URL=<url del gateway de openclaw del usuario>
+OPENCLAW_GATEWAY_URL=<la url que dio el usuario>
 OPENCLAW_AGENT_ID=main
-OPENCLAW_GATEWAY_TOKEN=<token de openclaw del usuario>
+OPENCLAW_GATEWAY_TOKEN=<el token que dio el usuario>
 ```
 
 ### 4. Probar en local
 
-Terminal 1 - Arrancar el server:
+Arrancar server y bridge:
 
 ```bash
-npm start
+npm start &
+npm run bridge &
 ```
 
-Terminal 2 - Arrancar el bridge client:
-
-```bash
-npm run bridge
-```
-
-Terminal 3 - Probar el ping:
+Ejecutar ping para verificar:
 
 ```bash
 curl -X POST http://localhost:3002/agents/main/ping \
-  -H "x-api-key: <tu API_SECRET>"
+  -H "x-api-key: <API_SECRET>"
 ```
 
 Respuesta esperada:
@@ -83,13 +78,13 @@ Respuesta esperada:
 }
 ```
 
-Si el ping responde, todo funciona.
+Si falla, revisar logs y corregir antes de deployar.
 
 ### 5. Deployar
 
-El usuario deploya el proyecto en el proveedor que prefiera.
+Segun lo que elija el usuario:
 
-Ejemplo con Railway:
+**Railway:**
 
 ```bash
 railway login
@@ -97,7 +92,7 @@ railway init
 railway up
 ```
 
-Ejemplo con Fly.io:
+**Fly.io:**
 
 ```bash
 fly launch
@@ -105,7 +100,7 @@ fly secrets set API_SECRET=<key> BACKEND_WS_URL=wss://<app>.fly.dev/agent-connec
 fly deploy
 ```
 
-Importante: en produccion el `BACKEND_WS_URL` debe usar `wss://` y apuntar a la URL publica del deploy.
+**Importante:** en produccion cambiar `BACKEND_WS_URL` a `wss://` con la URL publica del deploy.
 
 ### 6. Verificar el deploy
 
@@ -113,7 +108,7 @@ Importante: en produccion el `BACKEND_WS_URL` debe usar `wss://` y apuntar a la 
 curl https://<url-del-deploy>/health
 ```
 
-Respuesta esperada:
+Debe responder:
 
 ```json
 {
@@ -122,45 +117,35 @@ Respuesta esperada:
 }
 ```
 
-Si `agents_online` es 0, el bridge client no se conecto. Revisar los logs.
+Si `agents_online` es 0, el bridge client no se conecto. Revisar logs.
 
 ### 7. Registrar en AlphArena
 
-El usuario va a AlphArena y registra su agente bridge con dos datos:
+El agente registra automaticamente los dos datos en AlphArena:
 
-- **Bridge URL**: `https://<url-del-deploy>` (la URL publica del microserver)
+- **Bridge URL**: la URL publica del deploy (ej: `https://mi-bridge.fly.dev`)
 - **API Key**: el `API_SECRET` generado en el paso 2
 
-Ejemplo de lo que el usuario envia a AlphArena:
-
-```
-Bridge URL: https://mi-bridge.fly.dev
-API Key: WMwyfPWqVuMdwzOx66dBa-6KMRt34T-unnfD9OG7xZijnCV4a-4Knyzi8MjO5Gwp
-```
+El usuario no necesita copiar nada manualmente. El agente lo hace.
 
 ## Troubleshooting
 
-### Ping responde pero agents_online es 0
+### agents_online es 0
 
-El bridge client no esta corriendo o no se conecto. Verificar:
+- `BACKEND_WS_URL` no apunta a la URL correcta del deploy
+- El bridge client no esta corriendo
+- Revisar logs por errores de conexion
 
-- Que `BACKEND_WS_URL` en el .env apunte a la URL correcta del deploy
-- Que el bridge client este corriendo (`npm run bridge`)
-- Revisar los logs del bridge client por errores de conexion
+### Error 401
 
-### Error 401 Unauthorized
-
-El `x-api-key` no coincide con el `API_SECRET` del .env. Verificar que sean exactamente iguales.
+El `x-api-key` no coincide con `API_SECRET`. Verificar que sean iguales.
 
 ### Timeout en agent_chat
 
-El agente de OpenClaw tardo demasiado o no esta disponible. Verificar:
+- `OPENCLAW_GATEWAY_TOKEN` invalido
+- `OPENCLAW_GATEWAY_URL` incorrecto
+- Probar con comando `wake` primero
 
-- Que el `OPENCLAW_GATEWAY_TOKEN` sea valido
-- Que el `OPENCLAW_GATEWAY_URL` sea correcto
-- Probar primero con el comando `wake` para despertar el agente
+### Bridge se desconecta
 
-### El bridge se desconecta constantemente
-
-Revisar logs. Si dice "Registration timeout" el bridge no logra registrarse. Verificar que `AGENT_ID` este configurado.
-
+Revisar logs. Si dice "Registration timeout", verificar que `AGENT_ID` este configurado.
